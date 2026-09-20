@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DNS Playground — mcp-dns</title>
+<meta name="description" content="Live DNS lookups over HTTPS in your browser. A, AAAA, CNAME, MX, TXT, NS, SOA, CAA, SRV — no keys, no tracking.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f6f8fa;--card:#fff;--border:#d8dee4;--text:#1f2328;--muted:#57606a;--accent:#1f6feb;--accent-d:#1a5fc8;--bad:#cf222e;--mono:ui-monospace,'SF Mono',SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace}
+*{box-sizing:border-box}
+body{margin:0;font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.5;-webkit-font-smoothing:antialiased}
+.wrap{max-width:820px;margin:0 auto;padding:44px 20px 72px}
+h1{font-size:24px;letter-spacing:-.02em;margin:0}
+.sub{color:var(--muted);font-size:14px;margin:6px 0 0;max-width:64ch}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+.card{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:20px;margin-top:22px}
+.card h2{font-size:13px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin:0 0 14px}
+.row{display:flex;gap:10px}
+input[type=text],select{font:inherit;border:1px solid var(--border);border-radius:6px;padding:9px 12px;background:#fff;color:var(--text)}
+input[type=text]{flex:1;min-width:0;font-family:var(--mono);font-size:13.5px}
+select{width:auto}
+button{font:inherit;font-weight:600;border:none;border-radius:6px;padding:9px 18px;background:var(--accent);color:#fff;cursor:pointer}
+button:hover{background:var(--accent-d)}
+button:disabled{opacity:.45;cursor:default}
+.kv{display:grid;grid-template-columns:120px 1fr;gap:8px 14px;font-size:14px;align-items:baseline}
+.kv b{font-weight:600;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+.kv span{font-family:var(--mono);font-size:13px;word-break:break-all;text-align:left}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600;padding:6px 8px;border-bottom:1px solid var(--border)}
+td{padding:7px 8px;border-bottom:1px solid #eef1f4;vertical-align:top}
+tr:last-child td{border-bottom:none}
+td.val{font-family:var(--mono);word-break:break-all}
+td.meta{font-family:var(--mono);color:var(--muted);white-space:nowrap}
+.status{font-size:13px;color:var(--muted);margin-top:10px}
+.status.err{color:var(--bad)}
+.dim{color:var(--muted);font-size:13px;margin-top:12px;font-family:var(--mono)}
+footer{margin-top:44px;padding-top:16px;border-top:1px solid var(--border);color:var(--muted);font-size:12.5px}
+.pill{display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;background:#ddf4ff;color:#0969da;margin-right:8px;vertical-align:2px}
+@media(max-width:560px){.row{flex-wrap:wrap}.kv{grid-template-columns:90px 1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1><span class="pill">mcp-dns</span>DNS Playground</h1>
+  <p class="sub">Live DNS lookups from your browser over HTTPS — A, AAAA, CNAME, MX, TXT, NS, SOA, CAA, SRV. Queries go directly to Google Public DNS: no keys, no backend, no tracking. This is the web companion to the <a href="https://github.com/yeeeeezus/mcp-dns">mcp-dns MCP server</a> for AI agents.</p>
+</header>
+
+<section class="card">
+  <h2>Your network</h2>
+  <div class="kv" id="netkv"><span style="color:var(--muted);font-family:inherit">Detecting your address…</span></div>
+</section>
+
+<section class="card">
+  <h2>Lookup</h2>
+  <form class="row" id="lkform" autocomplete="off">
+    <input type="text" id="domain" placeholder="example.com  ·  _xmpp-server._tcp.gmail.com for SRV" spellcheck="false" autofocus>
+    <select id="rtype">
+      <option>A</option><option>AAAA</option><option>CNAME</option><option>MX</option>
+      <option>TXT</option><option>NS</option><option>SOA</option><option>CAA</option><option>SRV</option>
+    </select>
+    <button id="lkbtn" type="submit">Resolve</button>
+  </form>
+  <div class="status" id="lkstatus">Type a domain to resolve.</div>
+  <div id="lkres" style="display:none;margin-top:14px;overflow-x:auto">
+    <table><thead><tr><th>Type</th><th>Name</th><th>TTL</th><th>Value</th></tr></thead><tbody id="lktbody"></tbody></table>
+  </div>
+  <div id="ipdetails" class="dim" style="display:none"></div>
+</section>
+
+<footer>
+  Data: <a href="https://developers.google.com/speed/public-dns/docs/doh">Google Public DNS over HTTPS</a> · <a href="https://ipwho.is">ipwho.is</a> — everything runs client-side. Built by <a href="https://github.com/yeeeeezus">yeeeeezus</a>.
+</footer>
+</div>
+<script>
+'use strict';
+var $=function(id){return document.getElementById(id)};
+var TYPENAME={1:'A',2:'NS',5:'CNAME',6:'SOA',12:'PTR',15:'MX',16:'TXT',28:'AAAA',33:'SRV',257:'CAA'};
+
+function doh(name,type){
+  return fetch('https://dns.google/resolve?name='+encodeURIComponent(name)+'&type='+type)
+    .then(function(r){ if(!r.ok) throw new Error('DNS endpoint returned HTTP '+r.status); return r.json(); });
+}
+function normIP(w){
+  if(!w||!w.ip)return null;
+  var c=w.connection||{};
+  var asn=c.asn||w.asn||w.asn_number||null;
+  if(typeof asn==='string')asn=asn.replace(/^AS/i,'');
+  if(asn!=null)asn=parseInt(asn,10)||null;
+  return {
+    ip:w.ip,
+    city:w.city||'',
+    region:w.region||w.region_name||'',
+    country:w.country_name||w.country||'',
+    isp:c.isp||w.organization||w.org||c.org||w.asn_organization||'',
+    asn:asn?('AS'+asn):'',
+    domain:c.domain||''
+  };
+}
+function fetchT(url,ms){
+  return new Promise(function(res,rej){
+    var ctl=('AbortController' in window)?new AbortController():null;
+    var t=setTimeout(function(){ctl&&ctl.abort();rej(new Error('timeout'))},ms||8000);
+    fetch(url,ctl?{signal:ctl.signal}:undefined)
+      .then(function(r){clearTimeout(t);r.ok?res(r.json()):rej(new Error('HTTP '+r.status))})
+      .catch(function(e){clearTimeout(t);rej(e)});
+  });
+}
+function ipLookup(ip){
+  var fns=[
+    function(){return fetchT('https://ipwho.is/'+(ip||''))},
+    function(){return fetchT(ip?'https://ipapi.co/'+ip+'/json/':'https://ipapi.co/json/')},
+    function(){return fetchT('https://api.ip.sb/geoip'+(ip?'/'+ip:''))}
+  ];
+  var i=0;
+  function attempt(){
+    if(i>=fns.length)return Promise.resolve(null);
+    return fns[i++]().then(function(j){return normIP(j)||attempt()}).catch(attempt);
+  }
+  return attempt();
+}
+function setKV(el,pairs){
+  el.innerHTML='';
+  pairs.forEach(function(p){
+    var b=document.createElement('b'); b.textContent=p[0];
+    var s=document.createElement('span'); s.textContent=p[1];
+    el.appendChild(b); el.appendChild(s);
+  });
+}
+
+/* auto: your network */
+(function(){
+  ipLookup('').then(function(me){
+    if(!me) throw new Error('ip lookup failed');
+    var ptrP = /\d+\.\d+\.\d+\.\d+/.test(me.ip)
+      ? doh(me.ip.split('.').reverse().join('.')+'.in-addr.arpa','PTR').catch(function(){return null})
+      : Promise.resolve(null);
+    return ptrP.then(function(ptr){
+      var loc=[me.city,me.region,me.country].filter(Boolean).join(', ');
+      setKV($('netkv'),[
+        ['IP', me.ip||'—'],
+        ['PTR', ptr&&ptr.Answer&&ptr.Answer.length ? ptr.Answer[0].data : '—'],
+        ['Location', loc||'—'],
+        ['ISP', me.isp||'—'],
+        ['ASN', me.asn+(me.domain?' · '+me.domain:'') || '—']
+      ]);
+    });
+  }).catch(function(){
+    $('netkv').innerHTML='<span style="color:var(--muted);font-family:inherit">Could not detect your network.</span>';
+  });
+})();
+
+/* lookup */
+$('lkform').addEventListener('submit',function(ev){
+  ev.preventDefault();
+  var name=$('domain').value.trim().replace(/\.$/,'');
+  var type=$('rtype').value;
+  var st=$('lkstatus');
+  if(!name){ st.textContent='Enter a domain first.'; st.className='status err'; return; }
+  if(!/^[a-z0-9._*-]+$/i.test(name)||name.length>253){ st.textContent='That does not look like a valid hostname.'; st.className='status err'; return; }
+  $('lkbtn').disabled=true; st.textContent='Resolving '+name+' ('+type+')…'; st.className='status';
+  $('lkres').style.display='none'; $('ipdetails').style.display='none';
+
+  doh(name,type).then(async function(j){
+    if(j.Status===3){ st.textContent='NXDOMAIN — '+name+' does not exist.'; st.className='status err'; return; }
+    var ans=(j.Answer||[]).filter(function(a){return a.data!==undefined});
+    if(!ans.length){ st.textContent='No '+type+' records found for '+name+' (DNS status '+j.Status+').'; return; }
+    st.textContent=ans.length+' record'+(ans.length>1?'s':'')+' for '+name+'.';
+    st.className='status';
+    var tb=$('lktbody'); tb.innerHTML='';
+    ans.forEach(function(a){
+      var val=String(a.data);
+      if(a.type===16) val=val.replace(/^"+|"+$/g,'');
+      var tr=document.createElement('tr');
+      var td1=document.createElement('td'); td1.className='meta'; td1.textContent=TYPENAME[a.type]||('TYPE'+a.type);
+      var td2=document.createElement('td'); td2.className='meta'; td2.textContent=(a.name||name).replace(/\.$/,'');
+      var td3=document.createElement('td'); td3.className='meta'; td3.textContent=(a.TTL!=null?a.TTL+'s':'—');
+      var td4=document.createElement('td'); td4.className='val'; td4.textContent=val;
+      tr.append(td1,td2,td3,td4); tb.appendChild(tr);
+    });
+    $('lkres').style.display='block';
+
+    if(type==='A'||type==='AAAA'){
+      var want=type==='A'?1:28;
+      var first=ans.find(function(a){return a.type===want});
+      if(first){
+        try{
+          var w=await ipLookup(first.data);
+          if(w){
+            var bits=[w.isp, [w.city,w.country].filter(Boolean).join(', '), w.asn].filter(Boolean);
+            if(bits.length){
+              $('ipdetails').textContent=first.data+' — '+bits.join(' · ');
+              $('ipdetails').style.display='block';
+            }
+          }
+        }catch(e){}
+      }
+    }
+  }).catch(function(e){
+    st.textContent='Lookup failed: '+(e&&e.message?e.message:'network error')+'.';
+    st.className='status err';
+  }).finally(function(){ $('lkbtn').disabled=false; });
+});
+</script>
+</body>
+</html>

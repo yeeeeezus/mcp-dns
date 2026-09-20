@@ -7,6 +7,10 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![MCP](https://img.shields.io/badge/protocol-MCP-6E43B8)](https://modelcontextprotocol.io)
 
+## Playground
+
+No install needed — try live DNS lookups in the browser at **https://yeeeeezus.github.io/mcp-dns/** (DNS-over-HTTPS queries go straight from your browser to Google Public DNS). The server below is the same idea for AI agents.
+
 ## Why
 
 Agents doing web work, security review, infrastructure debugging or mail deliverability checks constantly need DNS facts: where does this domain point, what are its nameservers, does it have SPF/DMARC records, what does this IP reverse to. Instead of hoping the model remembers a shell one-liner, give it typed tools that return structured answers over the MCP stdio transport.
