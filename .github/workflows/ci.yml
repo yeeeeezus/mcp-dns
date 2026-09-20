@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [20, 22, 24]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+      - name: Install
+        run: npm ci
+      - name: Build and test
+        run: npm test
+      - name: Verify server starts and answers handshake
+        run: |
+          node -e "
+            const { spawn } = require('node:child_process');
+            const child = spawn(process.execPath, ['dist/index.js'], { stdio: ['pipe','pipe','pipe'] });
+            let out = '';
+            child.stdout.setEncoding('utf8');
+            child.stdout.on('data', d => out += d);
+            child.stdin.write(JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-03-26', capabilities: {}, clientInfo: { name: 'ci', version: '0' } } }) + '\n');
+            setTimeout(() => {
+              const msg = JSON.parse(out.trim().split('\n')[0]);
+              if (msg.result && msg.result.serverInfo && msg.result.serverInfo.name === 'mcp-dns') {
+                console.log('handshake OK:', msg.result.serverInfo.name, msg.result.serverInfo.version);
+                child.kill();
+                process.exit(0);
+              }
+              console.error('handshake FAILED:', out);
+              child.kill();
+              process.exit(1);
+            }, 3000);
+          "
